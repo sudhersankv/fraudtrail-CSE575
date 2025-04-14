@@ -95,15 +95,13 @@ def calculate_realistic_mid_deviation(start_coords, end_coords):
     # Convert angle to radians
     angle_radians = math.radians(angle_degrees)
     
-    # Earth's radius in km
     earth_radius = 6371.0
     
     # Approximate conversion from km to latitude/longitude degrees
-    # These are rough approximations and work best for small distances
     lat_change = (deviation_km / earth_radius) * (180 / math.pi)
     lon_change = (deviation_km / (earth_radius * math.cos(math.radians(mid_lat)))) * (180 / math.pi)
     
-    # Calculate the deviated point
+    # Calculate the deviated point for route deviation fraud
     deviated_lat = mid_lat + lat_change * math.sin(angle_radians)
     deviated_lon = mid_lon + lon_change * math.cos(angle_radians)
     
@@ -130,37 +128,36 @@ def create_route_deviation(origin: Tuple[float, float], destination: Tuple[float
     elif deviation_type == "major":
         # Major deviation - significant detour
         mid_point = calculate_realistic_mid_deviation(origin, destination)
-        # Add another deviation point for more complexity
+        # complex deviation
         second_point = calculate_realistic_mid_deviation(mid_point, destination)
         return [mid_point, second_point]
     
     
     elif deviation_type == "loop":
-        # Create a loop by adding waypoints that force a circuit
+        # Create a loop by adding waypoints that force a circuit to signfy additional distance covered along a circle 
         direct_vector = (destination[0] - origin[0], destination[1] - origin[1])
         distance = math.sqrt(direct_vector[0]**2 + direct_vector[1]**2)
         
         # Calculate three points to form a loop
-        third_dist = distance * 0.33  # First third of the journey
-        two_third_dist = distance * 0.66  # Second third of the journey
+        third_dist = distance * 0.33 
+        two_third_dist = distance * 0.66  
         
         # Points along the direct path
         point1 = (origin[0] + direct_vector[0] * 0.33, origin[1] + direct_vector[1] * 0.33)
         point3 = (origin[0] + direct_vector[0] * 0.66, origin[1] + direct_vector[1] * 0.66)
         
-        # Create a perpendicular point for the "loop"
+        # Create a perpendicular point for loop
         perp_vector = (-direct_vector[1], direct_vector[0])  # Perpendicular vector
         perp_magnitude = math.sqrt(perp_vector[0]**2 + perp_vector[1]**2)
         loop_size = distance * random.uniform(0.2, 0.4)  # Size of the loop
         
-        # Normalize perpendicular vector and scale it
+        # Normalization and scaling of the vector
         if perp_magnitude > 0:
             norm_perp = (perp_vector[0] / perp_magnitude, perp_vector[1] / perp_magnitude)
             point2 = (point1[0] + norm_perp[0] * loop_size, point1[1] + norm_perp[1] * loop_size)
             
             return [point1, point2, point3]
         else:
-            # Fallback
             return [calculate_realistic_mid_deviation(origin, destination)]
     
     elif deviation_type == "double_loop":
@@ -209,12 +206,10 @@ def get_osrm_route(start_coords: Tuple[float, float], end_coords: Tuple[float, f
     - start_coords: (lat, lon) of starting point
     - end_coords: (lat, lon) of destination
     - waypoints: List of (lat, lon) points to include in the route
-    - geometry_only: If True, only return geometry (for visualization)
-    - retry_count: Number of retry attempts
     
-    Returns dictionary with distance_m, duration_s, and geometry
-    """
-    # Build coordinates string for OSRM (which expects lon,lat format)
+    Returns dictionary with distance_m, duration_s, and geometry"""
+                       
+    # Build coordinates string for OSRM ((lon,lat) format)
     coords = f"{start_coords[1]},{start_coords[0]}"
     
     if waypoints:
@@ -247,8 +242,8 @@ def get_osrm_route(start_coords: Tuple[float, float], end_coords: Tuple[float, f
                         return [(coord[1], coord[0]) for coord in route["geometry"]["coordinates"]]
                     
                     return {
-                        "distance_m": route["distance"],             # in meters
-                        "duration_s": route["duration"],             # in seconds
+                        "distance_m": route["distance"],             # meters
+                        "duration_s": route["duration"],             # seconds
                         "geometry": route["geometry"]["coordinates"] # list of [lon, lat] points
                     }
             else:
@@ -256,22 +251,20 @@ def get_osrm_route(start_coords: Tuple[float, float], end_coords: Tuple[float, f
         except Exception as e:
             print(f"OSRM request error (attempt {attempt+1}/{retry_count}): {e}")
         
-        # Wait before retry
         time.sleep(1)
     
     # If all retries failed, calculate rough estimates
     print("Warning: OSRM request failed. Using fallback estimation.")
     
-    # Calculate rough distance using geodesic method for better accuracy
+    # Calculate rough distance using geodesic method
     distance_m = geodesic((start_coords[0], start_coords[1]), 
                            (end_coords[0], end_coords[1])).meters
     
-    # Very simple estimated duration (trucks average 60 km/h)
+    #simple estimated duration (trucks average 60 km/h)
     duration_s = distance_m / (60 * 1000 / 3600)  # Convert 60 km/h to m/s
     
     # If we only need geometry for visualization
     if geometry_only:
-        # Return a straight line from start to end
         return [(start_coords[0], start_coords[1]), (end_coords[0], end_coords[1])]
     
     return {
@@ -296,13 +289,13 @@ def calculate_route_similarity(actual_route, expected_route) -> float:
     """
     if not actual_route or not expected_route:
         # Fallback if route data is missing
-        return 0.5  # Neutral default
+        return 0.5 
     
     # Ensure we have meaningful routes to compare
     if len(actual_route) < 2 or len(expected_route) < 2:
-        return 0.5  # Neutral default
+        return 0.5 
     
-    # Convert from [lon, lat] to [lat, lon] if needed
+    # Convert from [lon, lat] to [lat, lon]
     if isinstance(actual_route[0], list):
         actual_points = [(coord[1], coord[0]) for coord in actual_route]
     else:
@@ -318,7 +311,6 @@ def calculate_route_similarity(actual_route, expected_route) -> float:
         return 1.0
         
     # First check if routes are significantly similar in terms of start, end, and length
-    # This quick check helps avoid penalizing routes with different sampling densities
     actual_start = actual_points[0]
     actual_end = actual_points[-1]
     expected_start = expected_points[0]
@@ -341,7 +333,6 @@ def calculate_route_similarity(actual_route, expected_route) -> float:
         length_ratio = min(actual_length, expected_length) / max(actual_length, expected_length)
         
         # If lengths are very similar (within 5%), and starts/ends match,
-        # this is likely the same route with different sampling
         if length_ratio > 0.95:
             # Sample some midpoints to verify
             actual_mid = actual_points[len(actual_points)//2]
@@ -355,7 +346,7 @@ def calculate_route_similarity(actual_route, expected_route) -> float:
 
     # For more complex comparisons, use Fréchet distance approximation
     # Sample both routes to the same number of points
-    sample_size = 50  # Fewer points for efficiency but still representative
+    sample_size = 50 
     
     # Create evenly spaced samples
     actual_samples = []
@@ -385,14 +376,16 @@ def calculate_route_similarity(actual_route, expected_route) -> float:
     # Calculate average distance
     avg_distance = total_distance / len(actual_samples)
     
-    # Convert distance to similarity (inversely related)
-    # Use exponential decay to give high scores to routes with small average distances
-    # and low scores to routes with large distances
+    """ Convert distance to similarity (inversely related)
+     Use exponential decay to give high scores to routes with small average distances
+     and low scores to routes with large distances 
+    """
     
-    # Parameters tuned to produce desired scores
-    # - Nearly identical routes should have avg_distance near 0 (score -> 1.0)
-    # - Completely different routes might have avg_distance of 50km+ (score -> 0.0)
-    # - Partially similar routes should have proportional scores
+    """ Parameters tuned to produce desired scores
+    - Nearly identical routes should have avg_distance near 0 (score -> 1.0)
+    - Completely different routes might have avg_distance of 50km+ (score -> 0.0)
+    - Partially similar routes should have proportional scores 
+    """
     similarity = math.exp(-avg_distance / 10.0)
     
     # Adjust similarity slightly based on length ratio
