@@ -398,14 +398,14 @@ def calculate_route_similarity(actual_route, expected_route) -> float:
     
     # Final score: combine similarity and length ratio (90/10 weighted)
     final_score = 0.9 * similarity + 0.1 * length_ratio
-    
-    # Ensure scores align with requirements:
-    # - If all route points match exactly: score should be 1.0
-    # - If less than half deviates: score should be > 0.5
-    # - If more than half deviates: score should be < 0.5
-    # - If routes entirely different: score should be close to 0.0
-    
-    # Adjust the scale to ensure more intuitive distribution
+
+    """
+    Ensure scores align with requirements:
+    If all route points match exactly: score should be 1.0
+    If less than half deviates: score should be > 0.5
+    If more than half deviates: score should be < 0.5
+    If routes entirely different: score should be close to 0.0
+    """
     if final_score > 0.95:
         # If very similar, round up to nearly 1.0
         return 0.98 + (final_score - 0.95) * 0.4
@@ -487,7 +487,6 @@ def calculate_loop_count(route_coords) -> int:
     for i in range(len(simplified_route) - 3):
         for j in range(i + 2, len(simplified_route) - 1):
             # Check if segments (i,i+1) and (j,j+1) could intersect
-            # This is a rough approximation - true intersection testing would be more complex
             segment1 = (simplified_route[i], simplified_route[i+1])
             segment2 = (simplified_route[j], simplified_route[j+1])
             
@@ -508,11 +507,11 @@ def calculate_loop_count(route_coords) -> int:
                 # Potential intersection detected
                 intersections += 1
     
-    # Combine methods to estimate loop count
-    # Simplified heuristic:
-    # 1. Significant direction changes contribute to loop detection
-    # 2. Self-intersections are strong indicators of loops
-    
+    """Combine methods to estimate loop count
+    Simplified heuristic:
+    1. Significant direction changes contribute to loop detection
+    2. Self-intersections are strong indicators of loops
+    """
     # Weight the factors to determine loop count
     loop_indicators = (direction_changes // 4) + significant_turns + (intersections // 2)
     
@@ -571,7 +570,6 @@ def visualize_delivery(delivery_data, filename):
             popup=f"Optimal Route: {delivery_data['distance_km']:.1f} km"
         ).add_to(m)
     
-    # Add the actual route in orange (changed from red for better distinction)
     if actual_route:
         folium.PolyLine(
             actual_route, 
@@ -581,7 +579,7 @@ def visualize_delivery(delivery_data, filename):
             popup=f"Actual Route: {delivery_data['actual_distance_km']:.1f} km"
         ).add_to(m)
     
-    # Highlight loops in the actual route if any are detected
+
     has_loops = False
     if delivery_data["loop_count"] > 0 and len(actual_route) > 10:
         # Analyze the route to find potential loop segments
@@ -593,16 +591,14 @@ def visualize_delivery(delivery_data, filename):
                 has_loops = True
                 folium.PolyLine(
                     segment,
-                    color='purple',  # Changed to purple for better visibility
+                    color='purple',
                     weight=5,
                     opacity=0.9,
                     popup=f"Detected Loop #{i+1}"
                 ).add_to(m)
-    
-    # Add order fulfillment status to the popup info
+
     fulfillment_status = "Yes" if delivery_data.get("order_fulfilled", 0) == 1 else "No"
     
-    # Create a more structured and detailed info popup
     html_info = f"""
     <div style='min-width:200px'>
         <h4 style='background-color:#f8f9fa; padding:8px; border-radius:4px;'>Delivery {delivery_data['delivery_id']}</h4>
@@ -641,7 +637,7 @@ def visualize_delivery(delivery_data, filename):
         icon=folium.Icon(color='purple', icon='info-sign')
     ).add_to(m)
     
-    # Add a custom legend
+ 
     legend_html = '''
     <div style="position: fixed; 
         bottom: 50px; right: 50px; width: 180px; height: auto; 
@@ -686,7 +682,7 @@ def visualize_delivery(delivery_data, filename):
     
     m.get_root().html.add_child(folium.Element(legend_html))
     
-    # Add title and metadata to the map
+
     title_html = f'''
     <div style="position: fixed; 
         top: 10px; left: 50%; transform: translateX(-50%);
@@ -703,7 +699,6 @@ def visualize_delivery(delivery_data, filename):
     
     m.get_root().html.add_child(folium.Element(title_html))
     
-    # Save the map
     m.save(filename)
     
     return
@@ -727,10 +722,9 @@ def identify_loop_segments(route_coords):
     if len(simplified_route) < 5:
         simplified_route = route_coords
     
-    # Lists to store detected loop segments
     loop_segments = []
     
-    # Method 1: Direction change detection
+    # 1: Direction change detection
     prev_direction = None
     segment_start = 0
     current_segment = []
@@ -779,7 +773,7 @@ def identify_loop_segments(route_coords):
             
         prev_direction = direction
     
-    # Method 2: Self-intersection detection
+    # 2: Self-intersection detection
     for i in range(len(simplified_route) - 10):
         for j in range(i + 10, len(simplified_route) - 1):
             # Check if point j is very close to point i (potential loop)
@@ -818,7 +812,6 @@ def generate_synthetic_deliveries(num_rows=50, suspicious_percent=0.20, seed=42,
     np.random.seed(seed)
     random.seed(seed)
     
-    # Create visualization output directory if it doesn't exist
     if create_visualizations:
         os.makedirs("route_visualizations", exist_ok=True)
     
@@ -834,7 +827,6 @@ def generate_synthetic_deliveries(num_rows=50, suspicious_percent=0.20, seed=42,
             "fraud_probability": random.uniform(0.7, 0.95)  # Not every delivery by fraud driver is fraudulent
         })
     
-    # Lists to collect generated data
     data_rows = []
     
     # Generate routes with appropriate mix of legitimate and suspicious deliveries
@@ -983,13 +975,13 @@ def generate_synthetic_deliveries(num_rows=50, suspicious_percent=0.20, seed=42,
         # Calculate loop count based on actual route
         loop_count = calculate_loop_count(actual_route_result["geometry"])
         
-        # NEW RULE 1: Immediately flag extreme route deviations (similarity < 0.2) as route fraud
+        # Immediately flag extreme route deviations (similarity < 0.2) as route fraud
         if route_similarity < 0.2 and not is_fraud_delivery:
             # Extreme route deviation - flag as route padding fraud immediately
             fraud_type = "route_padder"
             is_fraud_delivery = True
 
-        # NEW RULE 2: Flag different routes with similar/less delivery times as route fraud
+        # Flag different routes with similar/less delivery times as route fraud
         # (For routes with similarity between 0.2 and 0.4)
         if not is_fraud_delivery and route_similarity >= 0.2 and route_similarity < 0.4:
             if actual_distance_km > distance_km * 1.3:
@@ -1074,8 +1066,7 @@ def generate_synthetic_deliveries(num_rows=50, suspicious_percent=0.20, seed=42,
             if not reached_destination:
                 order_fulfilled = 0
             else:
-                # Even if reached destination, ghost delivery typically means order not fulfilled
-                # but allow a very small chance
+                # Even if reached destination, ghost delivery typically means order not fulfilled but allow a very small chance
                 order_fulfilled = 1 if random.random() < 0.1 else 0
         elif is_fraud_delivery:
             # For other fraud types
@@ -1086,21 +1077,18 @@ def generate_synthetic_deliveries(num_rows=50, suspicious_percent=0.20, seed=42,
             # Legitimate deliveries
             order_fulfilled = 1 if random.random() < 0.95 else 0
         
-        # CRITICAL: If order is not fulfilled, ALWAYS classify as ghost delivery
-        # regardless of whether destination was reached
+        # If order is not fulfilled, classify as ghost delivery regardless of whether destination was reached
         if order_fulfilled == 0 and fraud_type != "ghost_delivery":
             fraud_type = "ghost_delivery"
             is_fraud_delivery = True
             
-            # Make suspicious if it wasn't already
+            # Make suspicious if it nbot marked earlier
             if not is_fraud_delivery:
                 suspicious_count += 1
         
-        # Clip values to ensure they are within valid ranges
         actual_time_minutes = max(5, min(1440, actual_time_minutes))  # 5 min to 24 hours
         driver_rating = max(1.0, min(5.0, driver_rating))
         
-        # Create a row for this delivery
         delivery_row = {
             "delivery_id": f"DEL-{delivery_count+1:03d}",
             "driver_id": current_driver_id,
@@ -1149,18 +1137,16 @@ def generate_synthetic_deliveries(num_rows=50, suspicious_percent=0.20, seed=42,
     # Create DataFrame from all delivery data
     df = pd.DataFrame(data_rows)
     
-    # Remove route coordinate columns from the DataFrame (they're not needed for analytics)
     df_for_csv = df.drop(columns=["optimal_route_coords", "actual_route_coords"])
     
     return df_for_csv
 
 if __name__ == "__main__":
-    # Set parameters
+   
     num_deliveries = 50  # Generate 50 deliveries
     suspicious_percentage = 0.20  # Target ~20% suspicious
     random_seed = 42  # For reproducibility
     
-    # Generate the data
     print("Generating synthetic delivery data with OSRM-based routing...")
     
     synthetic_data = generate_synthetic_deliveries(
@@ -1170,15 +1156,12 @@ if __name__ == "__main__":
         create_visualizations=True
     )
     
-    # Save to CSV
     synthetic_data.to_csv("synthetic_delivery_data.csv", index=False)
     print("\nData generation complete!")
     
-    # Print statistics
     print(f"Total deliveries: {len(synthetic_data)}")
     print(f"Suspicious deliveries: {synthetic_data['marked_as_suspicious'].sum()} ({synthetic_data['marked_as_suspicious'].mean():.1%})")
     
-    # Show fraud type breakdown
     if synthetic_data['marked_as_suspicious'].sum() > 0:
         fraud_breakdown = synthetic_data[synthetic_data['marked_as_suspicious']==1]['fraud_type'].value_counts()
         print("\nFraud types breakdown:")
